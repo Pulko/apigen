@@ -1,0 +1,3 @@
+{% for entity in entities %}
+pub mod {{ entity.name }};
+{% endfor %}

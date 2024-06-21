@@ -1,0 +1,35 @@
+use actix_web::{get, post, delete, web, Responder};
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct {{ name | capitalize_first_letter }} {
+    {% for field in fields %}
+    pub {{ field.name }}: {{ field.field_type }},
+    {% endfor %}
+}
+
+#[get("/{{ name }}")]
+pub async fn all() -> impl Responder {
+    web::Json(vec![
+        {{ name | capitalize_first_letter }} {
+            {% for field in fields %}
+            {{ field.name }}: Default::default(),
+            {% endfor %}
+        }
+    ])
+}
+
+#[get("/{{ name }}/{id}")]
+pub async fn get(id: web::Path<i32>) -> impl Responder {
+    format!("Return {{ name | capitalize_first_letter }} with id {}", id)
+}
+
+#[post("/{{ name }}")]
+pub async fn create(item: web::Json<{{ name | capitalize_first_letter }}>) -> impl Responder {
+    format!("Create new {{ name | capitalize_first_letter }}: {:?}", item)
+}
+
+#[delete("/{{ name }}/{id}")]
+pub async fn delete(id: web::Path<i32>) -> impl Responder {
+    format!("Delete {{ name | capitalize_first_letter }} with id {}", id)
+}
