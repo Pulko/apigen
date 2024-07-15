@@ -1,0 +1,99 @@
+// {{ entity.name|lower }}.rs
+
+use axum::{extract::State, http::StatusCode, response::Json};
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
+
+use crate::schema::{{ entity.name|lower }};
+use crate::{internal_error, DatabaseConnection, Pool};
+
+#[derive(serde::Serialize, Selectable, Queryable, AsChangeset, Identifiable, Debug)]
+pub struct {{ entity.name }} {
+    {% for field in entity.fields %}
+    pub {{ field.name }}: {{ field.field_type }},
+    {% endfor %}
+}
+
+#[derive(serde::Deserialize, Insertable)]
+#[diesel(table_name = {{ entity.name|lower }})]
+pub struct New{{ entity.name }} {
+    {% for field in entity.fields %}
+    pub {{ field.name }}: {{ field.field_type }},
+    {% endfor %}
+}
+
+#[derive(serde::Deserialize, Insertable)]
+#[diesel(table_name = {{ entity.name|lower }})]
+pub struct Delete{{ entity.name }} {
+    pub id: {{ entity.fields[0].field_type }}, // Assuming the first field is the ID field
+}
+
+#[derive(serde::Deserialize, Insertable)]
+#[diesel(table_name = {{ entity.name|lower }})]
+pub struct Update{{ entity.name }} {
+    pub id: {{ entity.fields[0].field_type }}, // Assuming the first field is the ID field
+    {% for field in entity.fields %}
+    {% if loop.index > 0 %}
+        pub {{ field.name }}: {{ field.field_type }},
+    {% endif %}
+{% endfor %}
+}
+
+pub async fn create_{{ entity.name|lower }}(
+    State(pool): State<Pool>,
+    Json(new_{{ entity.name|lower }}): Json<New{{ entity.name }}>,
+) -> Result<Json<{{ entity.name }}>, (StatusCode, String)> {
+    let mut conn = pool.get().await.map_err(internal_error)?;
+
+    let res = diesel::insert_into({{ entity.name|lower }}::table)
+        .values(new_{{ entity.name|lower }})
+        .returning({{ entity.name }}::as_returning())
+        .get_result(&mut conn)
+        .await
+        .map_err(internal_error)?;
+    Ok(Json(res))
+}
+
+pub async fn list_{{ entity.name|lower }}s(
+    DatabaseConnection(mut conn): DatabaseConnection,
+) -> Result<Json<Vec<{{ entity.name }}>>, (StatusCode, String)> {
+    let res = {{ entity.name|lower }}::table
+        .select({{ entity.name }}::as_select())
+        .load(&mut conn)
+        .await
+        .map_err(internal_error)?;
+    Ok(Json(res))
+}
+
+pub async fn delete_{{ entity.name|lower }}(
+    State(pool): State<Pool>,
+    Json(delete_{{ entity.name|lower }}): Json<Delete{{ entity.name }}>,
+) {
+    let mut conn = pool.get().await.unwrap();
+    diesel::delete({{ entity.name|lower }}::table.filter({{ entity.name|lower }}::id.eq(delete_{{ entity.name|lower }}.id)))
+        .execute(&mut conn)
+        .await
+        .unwrap();
+}
+
+pub async fn update_{{ entity.name|lower }}(
+    State(pool): State<Pool>,
+    Json(update_{{ entity.name|lower }}): Json<Update{{ entity.name }}>,
+) -> Result<Json<{{ entity.name }}>, (StatusCode, String)> {
+    let mut conn = pool.get().await.unwrap();
+
+    let res = diesel::update({{ entity.name|lower }}::table.filter({{ entity.name|lower }}::id.eq(update_{{ entity.name|lower }}.id)))
+        .set((
+            {% for field in entity.fields %}
+                {% if loop.index > 1 %}
+                    {{ entity.name|lower }}::{{ field.name }}.eq(update_{{ entity.name|lower }}.{{ field.name }}),
+                {% endif %}
+            {% endfor %}
+
+        ))
+        .returning({{ entity.name }}::as_returning())
+        .get_result(&mut conn)
+        .await
+        .map_err(internal_error)?;
+    Ok(Json(res))
+}

@@ -1,0 +1,82 @@
+use axum::{
+    async_trait,
+    extract::{FromRef, FromRequestParts},
+    http::{request::Parts, StatusCode},
+    routing::{get, post},
+    Router,
+};
+use diesel_async::{pooled_connection::AsyncDieselConnectionManager, AsyncPgConnection};
+use dotenv::dotenv;
+use std::env;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+mod api;
+mod schema;
+
+use api;
+
+type Pool = bb8::Pool<AsyncDieselConnectionManager<AsyncPgConnection>>;
+
+#[tokio::main]
+async fn main() {
+    dotenv().ok();
+    let host = env::var("HOST").expect("HOST is missing in environment variables");
+    let port = env::var("PORT").expect("PORT is missing in environment variables");
+    let database_url =
+        env::var("DATABASE_URL").expect("DATABASE_URL is missing in environment variables");
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                tracing_subscriber::EnvFilter::new("info")
+            }),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    let config = AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(database_url);
+    let pool = bb8::Pool::builder().build(config).await.unwrap();
+
+    let app = Router::new()
+        {% for entity in entities %}
+        .route("/{{ entity.name|lower }}/list", get(api::{{ entity.name|lower }}::list_{{ entity.name|lower }}s))
+        .route("/{{ entity.name|lower }}/create", post(api::{{ entity.name|lower }}::create_{{ entity.name|lower }}))
+        .route("/{{ entity.name|lower }}/delete", post(api::{{ entity.name|lower }}::delete_{{ entity.name|lower }})) 
+        .route("/{{ entity.name|lower }}/update", post(api::{{ entity.name|lower }}::update_{{ entity.name|lower }})) 
+        {% endfor %}
+        .with_state(pool);
+
+    let addr = format!("{}:{}", host, port);
+
+    tracing::debug!("Started on {addr}");
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+struct DatabaseConnection(
+    bb8::PooledConnection<'static, AsyncDieselConnectionManager<AsyncPgConnection>>,
+);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for DatabaseConnection
+where
+    S: Send + Sync,
+    Pool: FromRef<S>,
+{
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let pool = Pool::from_ref(state);
+
+        let conn = pool.get_owned().await.map_err(internal_error)?;
+
+        Ok(Self(conn))
+    }
+}
+
+pub fn internal_error<E>(err: E) -> (StatusCode, String)
+where
+    E: std::error::Error,
+{
+    (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+}

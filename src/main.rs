@@ -1,107 +1,100 @@
-use std::{
-    collections::HashMap,
-    fs::{self, File},
-    io::Write,
-};
+use api_schema::{GeneratorError, Schema};
+use serde_json::Value;
+use short_uuid::ShortUuid;
+use std::env;
+use std::process;
+use tokio::process::Command;
 
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use tera::{Context, Filter, Result, Tera, Value};
+mod api_schema;
+mod builder;
 
-mod schema;
-use schema::ApiSchema;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = env::args().collect();
 
-#[get("/")]
-async fn index() -> impl Responder {
-    "Hello, world!"
-}
+    if args.len() < 2 {
+        eprintln!(
+            "Missing argument - API Schema: Usage: {} <api_schema>",
+            args[0]
+        );
+        process::exit(1);
+    }
 
-struct CapitalizeFirstLetter;
+    let api_schema_json = &args[1];
+    let api_schema_value: Value = serde_json::from_str(api_schema_json)?;
 
-impl Filter for CapitalizeFirstLetter {
-    fn filter(&self, value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
-        if let Some(s) = value.as_str() {
-            if let Some(c) = s.chars().next() {
-                let capitalized = c.to_uppercase().to_string() + &s[1..];
-                return Ok(tera::to_value(capitalized)?);
+    let project_id = generate_short_hash();
+
+    let schema = Schema::new(api_schema_value)?;
+
+    match schema.generate(&project_id).await {
+        Ok(tar_path) => {
+            println!("API generated successfully: {}", tar_path);
+            println!("Building Docker image...");
+
+            if let Err(_e) = build_docker_image(&project_id).await {
+                return Err(GeneratorError::DockerImageCreationError.into());
+            } else {
+                println!("Docker image built and pushed successfully.");
             }
         }
-        Ok(value.clone())
+        Err(e) => eprintln!("Error generating API: {}", e),
     }
+
+    Ok(())
 }
 
-#[post("/generate")]
-async fn generate(api_schema: web::Json<ApiSchema>) -> impl Responder {
-    let mut tera = match Tera::new("templates/**/*.rs.tera") {
-        Ok(t) => t,
-        Err(e) => {
-            println!("Parsing error(s): {}", e);
-            ::std::process::exit(1);
-        }
-    };
+async fn build_docker_image(project_id: &str) -> Result<(), GeneratorError> {
+    let folder = format!("output/project_{}", project_id);
 
-    tera.register_filter("capitalize_first_letter", CapitalizeFirstLetter);
-
-    let mut context = Context::new();
-    context.insert("entities", &api_schema.entities);
-
-    // Ensure output directory and api sub-directory exist
-    fs::create_dir_all("output/src/api").unwrap();
-
-    // Render main.rs
-    let main_rs = tera.render("main.rs.tera", &context).unwrap();
-    let mut main_file = File::create("output/src/main.rs").unwrap();
-    main_file.write_all(main_rs.as_bytes()).unwrap();
-
-    // Render api/mod.rs
-    let api_mod_rs = tera.render("api/mod.rs.tera", &context).unwrap();
-    let mut api_mod_file = File::create("output/src/api/mod.rs").unwrap();
-    api_mod_file.write_all(api_mod_rs.as_bytes()).unwrap();
-
-    // Render entity files inside api/
-    for entity in &api_schema.entities {
-        context.insert("name", &entity.name);
-        context.insert("fields", &entity.fields);
-        let entity_rs = tera.render("api/entity.rs.tera", &context).unwrap();
-        let mut entity_file = File::create(format!("output/src/api/{}.rs", entity.name)).unwrap();
-        entity_file.write_all(entity_rs.as_bytes()).unwrap();
-    }
-
-    // Copy cargo.toml.template content
-    let cargo_toml_template = fs::read_to_string("templates/cargo.toml.template").unwrap();
-    let mut cargo_file = File::create("output/Cargo.toml").unwrap();
-    cargo_file
-        .write_all(cargo_toml_template.as_bytes())
-        .unwrap();
-
-    // Copy .gitignore.template content
-    let gitignore_template = fs::read_to_string("templates/.gitignore.template").unwrap();
-    let mut gitignore_file = File::create("output/.gitignore").unwrap();
-    gitignore_file
-        .write_all(gitignore_template.as_bytes())
-        .unwrap();
-
-    // zip output directory
-    // remove output directory
-    // and return the zip file and remove it after sending it
-
-    let output = std::process::Command::new("zip")
-        .arg("-r")
-        .arg("output.zip")
-        .arg("output")
+    let build_output = Command::new("cargo")
+        .arg("build")
+        .arg("--release")
+        .current_dir(&folder)
         .output()
-        .expect("failed to execute process");
+        .await
+        .expect("Failed to build the project. Make sure Rust and Cargo are installed.");
 
-    std::fs::remove_dir_all("output").unwrap();
+    if !build_output.status.success() {
+        return Err(GeneratorError::BuildError);
+    }
 
-    // create docker image out of the output folder
+    let dockerfile_path = format!("{}/Dockerfile", folder);
+    let docker_image_name = format!("project_{}_image", project_id);
 
-    HttpResponse::Ok().message_body("Generated successfully")
+    let docker_build_output = Command::new("docker")
+        .arg("build")
+        .arg("-t")
+        .arg(&docker_image_name)
+        .arg("-f")
+        .arg(&dockerfile_path)
+        .arg(&folder)
+        .output()
+        .await
+        .expect("Failed to build Docker image. Make sure Docker is installed.");
+
+    if !docker_build_output.status.success() {
+        return Err(GeneratorError::DockerImageCreationError);
+    }
+
+    println!("Docker image {} created successfully.", docker_image_name);
+
+    let docker_push_output = Command::new("docker")
+        .arg("push")
+        .arg(&docker_image_name)
+        .output()
+        .await
+        .expect("Failed to push Docker image. Make sure you are logged in to Docker.");
+
+    if !docker_push_output.status.success() {
+        return Err(GeneratorError::DockerImagePushError);
+    }
+
+    println!("Docker image {} pushed successfully.", docker_image_name);
+
+    Ok(())
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(generate))
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+fn generate_short_hash() -> String {
+    ShortUuid::generate().to_string()
 }
