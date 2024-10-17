@@ -22,3 +22,7 @@ short-uuid = "0.1.2"
 tera = "1.20.0"
 thiserror = "1.0.61"
 tokio =  { version = "1.38.0", features = ["full"] }
+
+[[bin]]
+name = "rapido"
+path = "src/main.rs"

@@ -1,66 +1,80 @@
 use api_schema::Schema;
+use clap::{Arg, Command};
 use serde_json::Value;
 use short_uuid::ShortUuid;
-use std::env;
-use std::process;
 use template::TemplateConfig;
 
 mod api_schema;
 mod builder;
 mod template;
 
-const USAGE: &str = "<api_schema> <?db_type> <?framework>";
 const SUPPORTED_DBS: [&str; 1] = ["postgres"];
 const SUPPORTED_FRAMEWORKS: [&str; 1] = ["axum"];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args: Vec<String> = env::args().collect();
+    let matches = Command::new("RAPIDO: API Generator")
+        .version("0.1.0")
+        .author("Fedor Tkachenko <vzdbovich@gmail.com>")
+        .about("Generates APIs based on a provided schema")
+        .arg(
+            Arg::new("api_schema")
+                .help("The JSON schema for the API")
+                .required(true),
+        )
+        .arg(
+            Arg::new("db_type")
+                .help("The database type (supported: postgres)")
+                .default_value("postgres"),
+        )
+        .arg(
+            Arg::new("framework")
+                .help("The framework to use (supported: axum)")
+                .default_value("axum"),
+        )
+        .get_matches();
 
-    let len = args.len();
-
-    if len < 1 {
-        eprintln!("Missing arguments. Usage: {} {}", args[0], USAGE);
-        process::exit(1);
-    }
-
-    let api_schema_json = &args[1];
-    let db = if len > 2 { &args[2].to_lowercase() } else { "" };
-    let framework = if len > 3 { &args[3].to_lowercase() } else { "" };
+    let api_schema_json = matches.get_one::<String>("api_schema").unwrap();
+    let db_type = matches.get_one::<String>("db_type").unwrap().to_lowercase();
+    let framework = matches
+        .get_one::<String>("framework")
+        .unwrap()
+        .to_lowercase();
 
     let api_schema_value: Value = match serde_json::from_str(api_schema_json) {
         Ok(value) => value,
         Err(e) => {
             eprintln!("Invalid JSON schema provided: {}", e);
-            process::exit(1);
+            std::process::exit(1);
         }
     };
 
-    let template_config = TemplateConfig::new(&db.to_lowercase(), &framework.to_lowercase());
+    let template_config = TemplateConfig::new(&db_type, &framework);
 
     if !is_valid_config(&template_config) {
         eprintln!(
-            "Unsupported configuration.\n\nSupported db types: {}.\n\nSupported frameworks: {}.",
+            "Unsupported configuration.\n\nSupported db types: {}.\nSupported frameworks: {}.",
             SUPPORTED_DBS.join(", "),
             SUPPORTED_FRAMEWORKS.join(", ")
         );
-        process::exit(1);
+        std::process::exit(1);
     }
 
     let project_id = generate_short_hash();
 
-    let schema = Schema::new(api_schema_value);
+    let schema = match Schema::new(api_schema_value) {
+        Ok(schema) => schema,
+        Err(e) => {
+            eprintln!("Error with schema: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    if schema.is_err() {
-        eprintln!("SchemaError: {}", schema.err().unwrap());
-        process::exit(1);
-    }
-
-    match schema?.generate(&project_id, template_config).await {
+    match schema.generate(&project_id, template_config).await {
         Ok(output) => {
             println!("API generated successfully: {}", output);
         }
-        Err(e) => eprintln!("Error: {}", e),
+        Err(e) => eprintln!("Error generating API: {}", e),
     }
 
     Ok(())
