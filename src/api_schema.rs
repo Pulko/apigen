@@ -1,13 +1,11 @@
-use serde::{Deserialize, Serialize};
-
-use thiserror::Error;
-
 use crate::{builder::generate_api_folder, template::TemplateConfig};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
-    #[error("Failed to generate API folder")]
-    APIFolderError,
+    #[error("Error: {0}")]
+    APIFolderError(#[from] crate::builder::BuilderError),
     #[error("Schema must contain at least one entity")]
     EmptySchemaError,
     #[error("Entity name cannot be empty")]
@@ -22,18 +20,18 @@ pub enum SchemaError {
     FieldTypeError(String, String),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ApiSchema {
     pub entities: Vec<Entity>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Entity {
     pub name: String,
     pub fields: Vec<Field>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Field {
     pub name: String,
     pub field_type: String,
@@ -69,7 +67,7 @@ impl Schema {
 
         return match generation_result {
             Ok(result) => Ok(result),
-            Err(_) => Err(SchemaError::APIFolderError.into()),
+            Err(e) => Err(SchemaError::APIFolderError(e).into()),
         };
     }
 

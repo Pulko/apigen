@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct TemplateConfig {
     pub db_type: String,                         // e.g., "postgres"
     pub framework: String,                       // e.g., "axum"
@@ -12,31 +13,31 @@ impl TemplateConfig {
 
         template_paths.insert(
             "schema.rs".into(),
-            format!("templates/{}/schema.rs.tera", db_type),
+            format!("src/templates/{}/schema.rs.tera", db_type),
         );
         template_paths.insert(
             "main.rs".into(),
-            format!("templates/{}/main.rs.tera", db_type),
+            format!("src/templates/{}/main.rs.tera", db_type),
         );
         template_paths.insert(
             "entity.rs".into(),
-            format!("templates/{}/api/entity.rs.tera", db_type),
+            format!("src/templates/{}/api/entity.rs.tera", db_type),
         );
         template_paths.insert(
             "mod.rs".into(),
-            format!("templates/{}/api/mod.rs.tera", db_type),
+            format!("src/templates/{}/api/mod.rs.tera", db_type),
         );
         template_paths.insert(
             "Cargo.toml".into(),
-            format!("templates/{}/Cargo.toml.template", db_type),
+            format!("src/templates/{}/Cargo.toml.template", db_type),
         );
         template_paths.insert(
             ".gitignore".into(),
-            format!("templates/{}/.gitignore.template", db_type),
+            format!("src/templates/{}/.gitignore.template", db_type),
         );
         template_paths.insert(
             "Dockerfile".into(),
-            format!("templates/{}/Dockerfile.template", db_type),
+            format!("src/templates/{}/Dockerfile.template", db_type),
         );
 
         Self {

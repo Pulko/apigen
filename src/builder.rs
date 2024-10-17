@@ -1,17 +1,12 @@
+use super::api_schema::ApiSchema;
+use crate::template::TemplateConfig;
 use std::collections::HashMap;
-
+use tera::{Context, Result as TeraResult, Tera, Value};
+use thiserror::Error;
 use tokio::{
     fs::{self, File},
     io::AsyncWriteExt,
 };
-
-use tera::{Context, Result as TeraResult, Tera, Value};
-
-use crate::template::TemplateConfig;
-
-use super::api_schema::ApiSchema;
-
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum BuilderError {
@@ -23,17 +18,25 @@ pub enum BuilderError {
     ReadingTemplateError,
 }
 
-pub async fn add_templates_from_config<'a>(
+async fn add_templates_from_config<'a>(
     tera: &'a mut Tera,
     config: &'a TemplateConfig,
 ) -> Result<&'a mut Tera, BuilderError> {
     for (template_name, template_path) in &config.template_paths {
-        if let Ok(content) = fs::read_to_string(template_path).await {
-            let _ = tera.add_raw_template(template_name, &content);
-        } else {
-            return Err(BuilderError::ReadingTemplateError.into());
+        match fs::read_to_string(template_path).await {
+            Ok(content) => {
+                if let Err(e) = tera.add_raw_template(template_name, &content) {
+                    eprintln!("Error adding template '{}': {}", template_name, e);
+                    return Err(BuilderError::AddingRawTemplateError);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading template file '{}': {}", template_path, e);
+                return Err(BuilderError::ReadingTemplateError);
+            }
         }
     }
+
     Ok(tera)
 }
 
@@ -50,7 +53,10 @@ pub async fn generate_api_folder(
 
     let tera = match tera {
         Ok(t) => t,
-        Err(_) => return Err(BuilderError::AddingRawTemplateError.into()),
+        Err(e) => {
+            eprintln!("Failed adding templates from config: {}", e);
+            return Err(BuilderError::AddingRawTemplateError.into());
+        }
     };
 
     tera.register_filter("capitalize_first_letter", capitalize_filter);
@@ -59,63 +65,94 @@ pub async fn generate_api_folder(
 
     let folder = generate_folder_name(project_id);
 
-    if let Err(_e) = fs::create_dir_all(format!("output/{}/src/api", folder)).await {
+    if let Err(e) = fs::create_dir_all(format!("output/{}/src/api", folder)).await {
+        eprintln!("Error creating folder: {}", e);
         return Err(BuilderError::CreatingFolderError.into());
     }
 
-    let _ = render_template(tera, &context, &folder, api_schema).await;
+    if let Err(e) = render(tera, &context, &folder, api_schema, config).await {
+        eprintln!("Error rendering templates: {}", e);
+        return Err(BuilderError::AddingRawTemplateError);
+    }
 
     Ok(folder)
 }
 
-async fn render_template(tera: &mut Tera, context: &Context, folder: &str, api_schema: &ApiSchema) {
-    // Render schema.rs
-    if let Ok(schema_ts) = tera.render("schema.rs", &context) {
-        let mut schema_file = File::create(format!("output/{}/src/schema.rs", folder))
-            .await
-            .unwrap();
-        schema_file.write_all(schema_ts.as_bytes()).await.unwrap();
-    }
+async fn render(
+    tera: &mut Tera,
+    context: &Context,
+    folder: &str,
+    api_schema: &ApiSchema,
+    config: &TemplateConfig,
+) -> Result<(), std::io::Error> {
+    render_single_template(
+        tera,
+        context,
+        "schema.rs",
+        &format!("output/{}/src/schema.rs", folder),
+    )
+    .await?;
 
-    // Render main.rs
-    if let Ok(main_rs) = tera.render("main.rs", &context) {
-        let mut main_file = File::create(format!("output/{}/src/main.rs", folder))
-            .await
-            .unwrap();
-        main_file.write_all(main_rs.as_bytes()).await.unwrap();
-    }
+    render_single_template(
+        tera,
+        context,
+        "main.rs",
+        &format!("output/{}/src/main.rs", folder),
+    )
+    .await?;
 
-    // Render entity files inside api/
     for entity in &api_schema.entities {
         let mut entity_context = Context::new();
         entity_context.insert("entity", entity);
 
-        if let Ok(entity_rs) = tera.render("entity.rs", &entity_context) {
-            let mut entity_file =
-                File::create(format!("output/{}/src/api/{}.rs", folder, entity.name))
-                    .await
-                    .unwrap();
-            entity_file.write_all(entity_rs.as_bytes()).await.unwrap();
-        }
+        render_single_template(
+            tera,
+            &entity_context,
+            "entity.rs",
+            &format!("output/{}/src/api/{}.rs", folder, entity.name),
+        )
+        .await?;
     }
 
-    // Render api/mod.rs
-    if let Ok(mod_rs) = tera.render("mod.rs", &context) {
-        let mut mod_file = File::create(format!("output/{}/src/api/mod.rs", folder))
-            .await
-            .unwrap();
-        mod_file.write_all(mod_rs.as_bytes()).await.unwrap();
-    }
+    render_single_template(
+        tera,
+        context,
+        "mod.rs",
+        &format!("output/{}/src/api/mod.rs", folder),
+    )
+    .await?;
 
-    // Copy additional files like Cargo.toml, .gitignore, and Dockerfile
-    copy_additional_file("Cargo.toml", folder).await.unwrap();
-    copy_additional_file(".gitignore", folder).await.unwrap();
-    copy_additional_file("Dockerfile", folder).await.unwrap();
+    copy_additional_file("Cargo.toml", folder, config).await?;
+    copy_additional_file(".gitignore", folder, config).await?;
+    copy_additional_file("Dockerfile", folder, config).await?;
+
+    Ok(())
 }
 
-async fn copy_additional_file(file_key: &str, folder: &str) -> Result<(), std::io::Error> {
-    let config = TemplateConfig::new("postgres", "axum"); // This should ideally be passed as an argument, hardcoded for now
+async fn render_single_template(
+    tera: &mut Tera,
+    context: &Context,
+    template_name: &str,
+    output_file_path: &str,
+) -> Result<(), std::io::Error> {
+    if let Ok(content) = tera.render(template_name, context) {
+        let mut output_file = File::create(output_file_path).await?;
+        output_file.write_all(content.as_bytes()).await?;
+    } else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Template not found: {}", template_name),
+        ));
+    }
 
+    Ok(())
+}
+
+async fn copy_additional_file(
+    file_key: &str,
+    folder: &str,
+    config: &TemplateConfig,
+) -> Result<(), std::io::Error> {
     if let Some(template_path) = config.get_template_path(file_key) {
         let template_content = fs::read_to_string(template_path).await?;
 
@@ -126,7 +163,7 @@ async fn copy_additional_file(file_key: &str, folder: &str) -> Result<(), std::i
             _ => {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    "Unknown file key",
+                    format!("Unknown file key: {}", file_key),
                 ))
             }
         };

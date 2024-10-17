@@ -51,9 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match schema.generate(&project_id, template_config).await {
         Ok(output) => {
             println!("API generated successfully: {}", output);
-            println!("Building Docker image...");
         }
-        Err(e) => eprintln!("Error generating API: {}", e),
+        Err(e) => eprintln!("{}", e),
     }
 
     Ok(())
