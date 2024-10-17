@@ -1,7 +1,15 @@
 [package]
-name = "api_generator"
+name = "rapido"
 version = "0.1.0"
+authors = ["Fedor Tkachenko <vzdbovich@gmail.com>"]
+license = "MIT"
+description = "A tool to genearate REST API written in Rust"
+keywords = ["cli", "template", "axum", "rest", "api", "postgres", "diesel"]
+categories = ["command-line-utilities"]
+readme = "README.md"
 edition = "2021"
+homepage = "https://github.com/Pulko/rapido_tool"
+repository = "https://github.com/Pulko/rapido_tool"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
