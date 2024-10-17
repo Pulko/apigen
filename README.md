@@ -1,4 +1,4 @@
-# API Generator
+# RAPIDO
 
 ## Overview
 
@@ -68,7 +68,7 @@ rustc --version
    }
    ```
 
-3. Run the API generator:
+3. Run the RAPIDO:
 
    ```bash
    cargo run -- '<api_schema_json>'
