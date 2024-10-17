@@ -10,10 +10,10 @@ use tokio::{
 
 #[derive(Error, Debug)]
 pub enum BuilderError {
-    #[error("Error adding embedded templates")]
-    AddingRawTemplateError,
-    #[error("Error creating folder")]
-    CreatingFolderError,
+    #[error("Error adding embedded templates. {0}")]
+    AddingRawTemplateError(String),
+    #[error("Error creating all directories tree. {0}")]
+    CreatingFolderError(#[from] std::io::Error),
     #[error("Error reading template file")]
     ReadingTemplateError,
 }
@@ -26,8 +26,10 @@ async fn add_templates_from_config<'a>(
         match fs::read_to_string(template_path).await {
             Ok(content) => {
                 if let Err(e) = tera.add_raw_template(template_name, &content) {
-                    eprintln!("Error adding template '{}': {}", template_name, e);
-                    return Err(BuilderError::AddingRawTemplateError);
+                    return Err(BuilderError::AddingRawTemplateError(format!(
+                        "Error adding template '{}': {}",
+                        template_name, e
+                    )));
                 }
             }
             Err(e) => {
@@ -54,8 +56,11 @@ pub async fn generate_api_folder(
     let tera = match tera {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("Failed adding templates from config: {}", e);
-            return Err(BuilderError::AddingRawTemplateError.into());
+            return Err(BuilderError::AddingRawTemplateError(format!(
+                "Failed adding templates from config: {}",
+                e
+            ))
+            .into());
         }
     };
 
@@ -66,13 +71,11 @@ pub async fn generate_api_folder(
     let folder = generate_folder_name(project_id);
 
     if let Err(e) = fs::create_dir_all(format!("output/{}/src/api", folder)).await {
-        eprintln!("Error creating folder: {}", e);
-        return Err(BuilderError::CreatingFolderError.into());
+        return Err(BuilderError::CreatingFolderError(e).into());
     }
 
     if let Err(e) = render(tera, &context, &folder, api_schema, config).await {
-        eprintln!("Error rendering templates: {}", e);
-        return Err(BuilderError::AddingRawTemplateError);
+        return Err(BuilderError::AddingRawTemplateError(format!("{:?}", e)).into());
     }
 
     Ok(folder)

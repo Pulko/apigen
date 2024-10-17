@@ -1,10 +1,10 @@
-use crate::{builder::generate_api_folder, template::TemplateConfig};
+use crate::{builder, template::TemplateConfig};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
-    #[error("Error: {0}")]
+    #[error("Error generating API folder: {0}")]
     APIFolderError(#[from] crate::builder::BuilderError),
     #[error("Schema must contain at least one entity")]
     EmptySchemaError,
@@ -57,7 +57,6 @@ impl Schema {
         return match Schema::validate_schema(&api_schema) {
             Ok(_) => Ok(Self { json: api_schema }),
             Err(e) => {
-                eprintln!("{}", e);
                 return Err(e);
             }
         };
@@ -70,7 +69,8 @@ impl Schema {
     ) -> Result<String, SchemaError> {
         let api_schema = &self.json;
 
-        let generation_result = generate_api_folder(project_id, api_schema, &template_config).await;
+        let generation_result =
+            builder::generate_api_folder(project_id, api_schema, &template_config).await;
 
         return match generation_result {
             Ok(result) => Ok(result),
