@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SchemaError {
-    #[error("Error generating API folder: {0}")]
+    #[error("Failed generating API folder. {0}")]
     APIFolderError(#[from] crate::builder::BuilderError),
     #[error("Schema must contain at least one entity")]
     EmptySchemaError,

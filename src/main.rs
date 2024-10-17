@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let schema = Schema::new(api_schema_value);
 
     if schema.is_err() {
-        eprintln!("Error: {}", schema.err().unwrap());
+        eprintln!("SchemaError: {}", schema.err().unwrap());
         process::exit(1);
     }
 

@@ -15,7 +15,7 @@ pub enum BuilderError {
     #[error("Error creating all directories tree. {0}")]
     CreatingFolderError(#[from] std::io::Error),
     #[error("Error reading template file")]
-    ReadingTemplateError,
+    ReadingTemplateError(String),
 }
 
 async fn add_templates_from_config<'a>(
@@ -33,8 +33,10 @@ async fn add_templates_from_config<'a>(
                 }
             }
             Err(e) => {
-                eprintln!("Error reading template file '{}': {}", template_path, e);
-                return Err(BuilderError::ReadingTemplateError);
+                return Err(BuilderError::ReadingTemplateError(format!(
+                    "'{}': {}",
+                    template_path, e
+                )));
             }
         }
     }
