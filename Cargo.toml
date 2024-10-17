@@ -8,8 +8,8 @@ keywords = ["cli", "template", "rest", "api", "generator"]
 categories = ["command-line-utilities"]
 readme = "README.md"
 edition = "2021"
-homepage = "https://github.com/Pulko/rapido_tool"
-repository = "https://github.com/Pulko/rapido_tool"
+homepage = "https://github.com/Pulko/apigen"
+repository = "https://github.com/Pulko/apigen"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
