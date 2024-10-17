@@ -1,4 +1,4 @@
-# RAPIDO
+# apigen
 
 ## Overview
 
@@ -68,7 +68,7 @@ rustc --version
    }
    ```
 
-3. Run the RAPIDO:
+3. Run the apigen:
 
    ```bash
    cargo run -- '<api_schema_json>'

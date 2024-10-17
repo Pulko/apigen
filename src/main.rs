@@ -13,7 +13,7 @@ const SUPPORTED_FRAMEWORKS: [&str; 1] = ["axum"];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let matches = Command::new("RAPIDO: API Generator")
+    let matches = Command::new("apigen: API Generator")
         .version("0.1.0")
         .author("Fedor Tkachenko <vzdbovich@gmail.com>")
         .about("Generates APIs based on a provided schema")
