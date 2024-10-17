@@ -1,6 +1,6 @@
 [package]
 name = "apigen"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Fedor Tkachenko <vzdbovich@gmail.com>"]
 license = "MIT"
 description = "A tool to genearate REST API written in Rust"
