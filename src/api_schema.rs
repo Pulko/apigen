@@ -18,6 +18,10 @@ pub enum SchemaError {
     FieldNameError(String),
     #[error("Field type cannot be empty for field '{0}' in entity '{1}'.")]
     FieldTypeError(String, String),
+    #[error("First field name must be 'id'")]
+    EntityIdError,
+    #[error("Field {0} must contain at least one field.")]
+    EmptyFieldError(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -52,7 +56,10 @@ impl Schema {
 
         return match Schema::validate_schema(&api_schema) {
             Ok(_) => Ok(Self { json: api_schema }),
-            Err(e) => Err(e),
+            Err(e) => {
+                eprintln!("{}", e);
+                return Err(e);
+            }
         };
     }
 
@@ -83,6 +90,16 @@ impl Schema {
     fn validate_schema(api_schema: &ApiSchema) -> Result<(), SchemaError> {
         if api_schema.entities.is_empty() {
             return Err(SchemaError::EmptySchemaError.into());
+        }
+
+        if api_schema.entities[0].fields.is_empty() {
+            return Err(SchemaError::EmptyFieldError(
+                api_schema.entities[0].name.clone(),
+            ));
+        }
+
+        if api_schema.entities[0].fields[0].name.trim() != "id" {
+            return Err(SchemaError::EntityIdError.into());
         }
 
         for entity in &api_schema.entities {

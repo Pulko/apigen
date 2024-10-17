@@ -25,13 +25,13 @@ pub struct New{{ entity.name }} {
 #[derive(serde::Deserialize, Insertable)]
 #[diesel(table_name = {{ entity.name|lower }})]
 pub struct Delete{{ entity.name }} {
-    pub id: {{ entity.fields[0].field_type }}, // Assuming the first field is the ID field
+    pub id: {{ entity.fields[0].field_type }},
 }
 
 #[derive(serde::Deserialize, Insertable)]
 #[diesel(table_name = {{ entity.name|lower }})]
 pub struct Update{{ entity.name }} {
-    pub id: {{ entity.fields[0].field_type }}, // Assuming the first field is the ID field
+    pub id: {{ entity.fields[0].field_type }},
     {% for field in entity.fields %}
     {% if loop.index > 0 %}
         pub {{ field.name }}: {{ field.field_type }},

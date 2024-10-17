@@ -47,8 +47,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let project_id = generate_short_hash();
 
-    let schema = Schema::new(api_schema_value)?;
-    match schema.generate(&project_id, template_config).await {
+    let schema = Schema::new(api_schema_value);
+
+    if schema.is_err() {
+        eprintln!("Error parsing schema.");
+        process::exit(1);
+    }
+
+    match schema?.generate(&project_id, template_config).await {
         Ok(output) => {
             println!("API generated successfully: {}", output);
         }
