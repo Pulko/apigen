@@ -10,7 +10,6 @@ readme = "README.md"
 edition = "2021"
 homepage = "https://github.com/Pulko/rapido_tool"
 repository = "https://github.com/Pulko/rapido_tool"
-include = ["src/templates/**/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
