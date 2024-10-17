@@ -7,20 +7,50 @@ use tokio::{
 
 use tera::{Context, Result as TeraResult, Tera, Value};
 
+use crate::template::TemplateConfig;
+
 use super::api_schema::ApiSchema;
+
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum BuilderError {
+    #[error("Error adding embedded templates")]
+    AddingRawTemplateError,
+    #[error("Error creating folder")]
+    CreatingFolderError,
+    #[error("Error reading template file")]
+    ReadingTemplateError,
+}
+
+pub async fn add_templates_from_config<'a>(
+    tera: &'a mut Tera,
+    config: &'a TemplateConfig,
+) -> Result<&'a mut Tera, BuilderError> {
+    for (template_name, template_path) in &config.template_paths {
+        if let Ok(content) = fs::read_to_string(template_path).await {
+            let _ = tera.add_raw_template(template_name, &content);
+        } else {
+            return Err(BuilderError::ReadingTemplateError.into());
+        }
+    }
+    Ok(tera)
+}
 
 pub async fn generate_api_folder(
     project_id: &str,
     api_schema: &ApiSchema,
-) -> Result<String, std::io::Error> {
+    config: &TemplateConfig,
+) -> Result<String, BuilderError> {
     let mut context = Context::new();
     context.insert("entities", &api_schema.entities);
-    let mut tera = match Tera::new("src/templates/postgres/**/*.tera") {
+
+    let mut original_tera = Tera::default();
+    let tera = add_templates_from_config(&mut original_tera, config).await;
+
+    let tera = match tera {
         Ok(t) => t,
-        Err(e) => {
-            println!("Parsing error(s): {}", e);
-            std::process::exit(1);
-        }
+        Err(_) => return Err(BuilderError::AddingRawTemplateError.into()),
     };
 
     tera.register_filter("capitalize_first_letter", capitalize_filter);
@@ -29,82 +59,83 @@ pub async fn generate_api_folder(
 
     let folder = generate_folder_name(project_id);
 
-    fs::create_dir_all(format!("output/{}/src/api", folder))
-        .await
-        .unwrap();
+    if let Err(_e) = fs::create_dir_all(format!("output/{}/src/api", folder)).await {
+        return Err(BuilderError::CreatingFolderError.into());
+    }
 
-    println!("{:?}", tera.get_template_names().collect::<Vec<&str>>());
+    let _ = render_template(tera, &context, &folder, api_schema).await;
 
+    Ok(folder)
+}
+
+async fn render_template(tera: &mut Tera, context: &Context, folder: &str, api_schema: &ApiSchema) {
     // Render schema.rs
-    let schema_ts = tera.render("schema.rs.tera", &context).unwrap();
-    let mut schema_file = File::create(format!("output/{}/src/schema.rs", folder))
-        .await
-        .unwrap();
-    schema_file.write_all(schema_ts.as_bytes()).await.unwrap();
+    if let Ok(schema_ts) = tera.render("schema.rs", &context) {
+        let mut schema_file = File::create(format!("output/{}/src/schema.rs", folder))
+            .await
+            .unwrap();
+        schema_file.write_all(schema_ts.as_bytes()).await.unwrap();
+    }
 
     // Render main.rs
-    let main_rs = tera.render("main.rs.tera", &context).unwrap();
-    let mut main_file = File::create(format!("output/{}/src/main.rs", folder))
-        .await
-        .unwrap();
-    main_file.write_all(main_rs.as_bytes()).await.unwrap();
+    if let Ok(main_rs) = tera.render("main.rs", &context) {
+        let mut main_file = File::create(format!("output/{}/src/main.rs", folder))
+            .await
+            .unwrap();
+        main_file.write_all(main_rs.as_bytes()).await.unwrap();
+    }
 
     // Render entity files inside api/
     for entity in &api_schema.entities {
         let mut entity_context = Context::new();
         entity_context.insert("entity", entity);
 
-        let entity_rs = tera.render("api/entity.rs.tera", &entity_context).unwrap();
-        let mut entity_file = File::create(format!("output/{}/src/api/{}.rs", folder, entity.name))
-            .await
-            .unwrap();
-        entity_file.write_all(entity_rs.as_bytes()).await.unwrap();
+        if let Ok(entity_rs) = tera.render("entity.rs", &entity_context) {
+            let mut entity_file =
+                File::create(format!("output/{}/src/api/{}.rs", folder, entity.name))
+                    .await
+                    .unwrap();
+            entity_file.write_all(entity_rs.as_bytes()).await.unwrap();
+        }
     }
 
     // Render api/mod.rs
-    let mod_rs = tera.render("api/mod.rs.tera", &context).unwrap();
-    let mut mod_file = File::create(format!("output/{}/src/api/mod.rs", folder))
-        .await
-        .unwrap();
-    mod_file.write_all(mod_rs.as_bytes()).await.unwrap();
+    if let Ok(mod_rs) = tera.render("mod.rs", &context) {
+        let mut mod_file = File::create(format!("output/{}/src/api/mod.rs", folder))
+            .await
+            .unwrap();
+        mod_file.write_all(mod_rs.as_bytes()).await.unwrap();
+    }
 
-    // Copy cargo.toml.template content
-    let cargo_toml_template = fs::read_to_string("src/templates/postgres/cargo.toml.template")
-        .await
-        .unwrap();
-    let mut cargo_file = File::create(format!("output/{}/Cargo.toml", folder))
-        .await
-        .unwrap();
-    cargo_file
-        .write_all(cargo_toml_template.as_bytes())
-        .await
-        .unwrap();
+    // Copy additional files like Cargo.toml, .gitignore, and Dockerfile
+    copy_additional_file("Cargo.toml", folder).await.unwrap();
+    copy_additional_file(".gitignore", folder).await.unwrap();
+    copy_additional_file("Dockerfile", folder).await.unwrap();
+}
 
-    // Copy .gitignore.template content
-    let gitignore_template = fs::read_to_string("src/templates/postgres/.gitignore.template")
-        .await
-        .unwrap();
-    let mut gitignore_file = File::create(format!("output/{}/.gitignore", folder))
-        .await
-        .unwrap();
-    gitignore_file
-        .write_all(gitignore_template.as_bytes())
-        .await
-        .unwrap();
+async fn copy_additional_file(file_key: &str, folder: &str) -> Result<(), std::io::Error> {
+    let config = TemplateConfig::new("postgres", "axum"); // This should ideally be passed as an argument, hardcoded for now
 
-    // Copy Dockerfile.template content
-    let dockerfile_template = fs::read_to_string("src/templates/postgres/Dockerfile.template")
-        .await
-        .unwrap();
-    let mut dockerfile_file = File::create(format!("output/{}/Dockerfile", folder))
-        .await
-        .unwrap();
-    dockerfile_file
-        .write_all(dockerfile_template.as_bytes())
-        .await
-        .unwrap();
+    if let Some(template_path) = config.get_template_path(file_key) {
+        let template_content = fs::read_to_string(template_path).await?;
 
-    Ok(folder)
+        let output_file_path = match file_key {
+            "Cargo.toml" => format!("output/{}/Cargo.toml", folder),
+            ".gitignore" => format!("output/{}/.gitignore", folder),
+            "Dockerfile" => format!("output/{}/Dockerfile", folder),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Unknown file key",
+                ))
+            }
+        };
+
+        let mut output_file = File::create(output_file_path).await?;
+        output_file.write_all(template_content.as_bytes()).await?;
+    }
+
+    Ok(())
 }
 
 pub fn generate_folder_name(project_id: &str) -> String {
