@@ -71,13 +71,13 @@ rustc --version
 3. Run the apigen:
 
    ```bash
-   cargo run -- '<api_schema_json>'
+   apigen '<api_schema_json>'
    ```
 
    Replace `<api_schema_json>` with your actual JSON schema. For example:
 
    ```bash
-   cargo run -- '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"u32"},{"name":"username","field_type":"String"}]}]}'
+   apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"u32"},{"name":"username","field_type":"String"}]}]}'
    ```
 
 4. The generated API will be saved in the `output` directory. The output folder will contain:

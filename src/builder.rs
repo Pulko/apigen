@@ -111,7 +111,7 @@ async fn render(
             tera,
             &entity_context,
             "entity.rs",
-            &format!("{}/src/api/{}.rs", folder, entity.name),
+            &format!("{}/src/api/{}.rs", folder, entity.name.to_lowercase()),
         )
         .await?;
     }
@@ -190,12 +190,13 @@ fn capitalize_filter(value: &Value, _: &HashMap<String, Value>) -> TeraResult<Va
 fn diesel_type_filter(value: &Value, _: &HashMap<String, Value>) -> TeraResult<Value> {
     let rust_type = value.as_str().unwrap();
     let diesel_type = match rust_type {
-        "u32" => "Int4",
+        "i32" => "Integer",
+        "u32" => "Integer",
         "String" => "Text",
         "Option<String>" => "Nullable<Text>",
-        "Option<u32>" => "Nullable<Int4>",
+        "Option<u32>" => "Nullable<Integer>",
         "Vec<String>" => "Array<Text>",
-        "Vec<u32>" => "Array<Int4>",
+        "Vec<u32>" => "Array<Integer>",
         "Vec<Option<String>>" => "Array<Nullable<Text>>",
         "Value" => "Jsonb",
         _ => rust_type,

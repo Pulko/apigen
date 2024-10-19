@@ -11,7 +11,7 @@ mod template;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new("apigen: API Generator")
-        .version("0.1.0")
+        .version("0.2.0")
         .author("Fedor Tkachenko <vzdbovich@gmail.com>")
         .about("Generates APIs based on a provided schema")
         .arg(
@@ -21,22 +21,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .arg(
             Arg::new("db_type")
-                .help("The database type (supported: postgres)")
+                .help("The database type (default: postgres)")
                 .default_value("postgres"),
-        )
-        .arg(
-            Arg::new("framework")
-                .help("The framework to use (supported: axum)")
-                .default_value("axum"),
         )
         .get_matches();
 
     let api_schema_json = matches.get_one::<String>("api_schema").unwrap();
     let db_type = matches.get_one::<String>("db_type").unwrap().to_lowercase();
-    let framework = matches
-        .get_one::<String>("framework")
-        .unwrap()
-        .to_lowercase();
 
     let api_schema_value: Value = match serde_json::from_str(api_schema_json) {
         Ok(value) => value,
@@ -46,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let template_config = TemplateConfig::new(&db_type, &framework);
+    let template_config = TemplateConfig::new(&db_type);
 
     if !template_config.is_valid() {
         eprintln!("{}", template_config.get_supported_config_message());
