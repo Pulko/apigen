@@ -16,6 +16,7 @@ repository = "https://github.com/Pulko/apigen"
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 dotenv = "0.15.0"
+include_dir = "0.7.4"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
 short-uuid = "0.1.2"
@@ -26,3 +27,6 @@ tokio =  { version = "1.38.0", features = ["full"] }
 [[bin]]
 name = "apigen"
 path = "src/main.rs"
+
+[dev-dependencies]
+tokio =  { version = "1.38.0", features = ["full"] }

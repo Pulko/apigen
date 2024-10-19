@@ -8,9 +8,6 @@ mod api_schema;
 mod builder;
 mod template;
 
-const SUPPORTED_DBS: [&str; 1] = ["postgres"];
-const SUPPORTED_FRAMEWORKS: [&str; 1] = ["axum"];
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new("apigen: API Generator")
@@ -51,12 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let template_config = TemplateConfig::new(&db_type, &framework);
 
-    if !is_valid_config(&template_config) {
-        eprintln!(
-            "Unsupported configuration.\n\nSupported db types: {}.\nSupported frameworks: {}.",
-            SUPPORTED_DBS.join(", "),
-            SUPPORTED_FRAMEWORKS.join(", ")
-        );
+    if !template_config.is_valid() {
+        eprintln!("{}", template_config.get_supported_config_message());
         std::process::exit(1);
     }
 
@@ -65,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let schema = match Schema::new(api_schema_value) {
         Ok(schema) => schema,
         Err(e) => {
-            eprintln!("Error with schema: {}", e);
+            eprintln!("{}", e);
             std::process::exit(1);
         }
     };
@@ -74,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(output) => {
             println!("API generated successfully: {}", output);
         }
-        Err(e) => eprintln!("Error generating API: {}", e),
+        Err(e) => eprintln!("{}", e),
     }
 
     Ok(())
@@ -82,9 +75,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn generate_short_hash() -> String {
     ShortUuid::generate().to_string()
-}
-
-fn is_valid_config(template_config: &TemplateConfig) -> bool {
-    SUPPORTED_DBS.contains(&template_config.db.as_str())
-        && SUPPORTED_FRAMEWORKS.contains(&template_config.framework.as_str())
 }

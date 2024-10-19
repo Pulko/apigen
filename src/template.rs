@@ -7,6 +7,19 @@ pub struct TemplateConfig {
     pub template_paths: HashMap<String, String>, // template file paths
 }
 
+const POSTGRES_TEMPLATES: [(&str, &str); 7] = [
+    ("schema.rs", "postgres/schema.rs.tera"),
+    ("main.rs", "postgres/main.rs.tera"),
+    ("entity.rs", "postgres/api/entity.rs.tera"),
+    ("mod.rs", "postgres/api/mod.rs.tera"),
+    ("Cargo.toml", "postgres/Cargo.toml.template"),
+    (".gitignore", "postgres/.gitignore.template"),
+    ("Dockerfile", "postgres/Dockerfile.template"),
+];
+
+const SUPPORTED_DBS: [&str; 1] = ["postgres"];
+const SUPPORTED_FRAMEWORKS: [&str; 1] = ["axum"];
+
 impl TemplateConfig {
     pub fn new(db: &str, framework: &str) -> Self {
         let mut template_paths = HashMap::new();
@@ -26,34 +39,14 @@ impl TemplateConfig {
             framework_name = framework;
         }
 
-        template_paths.insert(
-            "schema.rs".into(),
-            format!("src/templates/{}/schema.rs.tera", db_name),
-        );
-        template_paths.insert(
-            "main.rs".into(),
-            format!("src/templates/{}/main.rs.tera", db_name),
-        );
-        template_paths.insert(
-            "entity.rs".into(),
-            format!("src/templates/{}/api/entity.rs.tera", db_name),
-        );
-        template_paths.insert(
-            "mod.rs".into(),
-            format!("src/templates/{}/api/mod.rs.tera", db_name),
-        );
-        template_paths.insert(
-            "Cargo.toml".into(),
-            format!("src/templates/{}/Cargo.toml.template", db_name),
-        );
-        template_paths.insert(
-            ".gitignore".into(),
-            format!("src/templates/{}/.gitignore.template", db_name),
-        );
-        template_paths.insert(
-            "Dockerfile".into(),
-            format!("src/templates/{}/Dockerfile.template", db_name),
-        );
+        match db_name {
+            "postgres" => {
+                for (_, template) in POSTGRES_TEMPLATES.iter().enumerate() {
+                    template_paths.insert(template.0.to_string(), template.1.to_string());
+                }
+            }
+            _ => {}
+        }
 
         Self {
             db: db_name.to_string(),
@@ -62,7 +55,37 @@ impl TemplateConfig {
         }
     }
 
-    pub fn get_template_path(&self, key: &str) -> Option<&String> {
-        self.template_paths.get(key)
+    pub fn is_valid(&self) -> bool {
+        SUPPORTED_DBS.contains(&self.db.as_str())
+            && SUPPORTED_FRAMEWORKS.contains(&self.framework.as_str())
+    }
+
+    pub fn get_supported_config_message(&self) -> String {
+        format!(
+            "Supported configurations:\n\n\ndatabases:\n {:?},\n\nframework:\n{:?}\n\n\n\nGot invalid configuration: db: {}, framework: {}",
+            SUPPORTED_DBS.join(",\n"),
+            SUPPORTED_FRAMEWORKS.join(",\n"),
+            self.db,
+            self.framework
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_template_config_postgres() {
+        let config = TemplateConfig::new("postgres", "axum");
+        assert_eq!(config.db, "postgres");
+        assert_eq!(config.framework, "axum");
+        assert!(config.is_valid());
+    }
+
+    #[test]
+    fn test_template_config_invalid() {
+        let config = TemplateConfig::new("unknown_db", "axum");
+        assert!(!config.is_valid());
     }
 }

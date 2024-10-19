@@ -52,14 +52,12 @@ impl Schema {
         match Schema::parse_schema(json) {
             Ok(schema) => api_schema = schema,
             Err(e) => return Err(e),
-        }
-
-        return match Schema::validate_schema(&api_schema) {
-            Ok(_) => Ok(Self { json: api_schema }),
-            Err(e) => {
-                return Err(e);
-            }
         };
+
+        match Schema::validate_schema(&api_schema) {
+            Ok(_) => Ok(Self { json: api_schema }),
+            Err(e) => return Err(e),
+        }
     }
 
     pub async fn generate(
@@ -123,5 +121,57 @@ impl Schema {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_schema_valid() {
+        let json_value = json!({
+            "entities": [{
+                "name": "User",
+                "fields": [{"name": "id", "field_type": "u32"}, {"name": "name", "field_type": "String"}]
+            }]
+        });
+
+        let schema_result = Schema::new(json_value);
+        assert!(schema_result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_schema_invalid() {
+        let json_value = json!({
+            "invalid_field": "data"
+        });
+
+        let schema_result = Schema::new(json_value);
+        assert!(matches!(schema_result, Err(SchemaError::ParsingError(_))));
+    }
+
+    #[test]
+    fn test_validate_schema_empty() {
+        let json_value = json!({
+            "entities": []
+        });
+
+        let schema_result = Schema::new(json_value);
+        assert!(matches!(schema_result, Err(SchemaError::EmptySchemaError)));
+    }
+
+    #[test]
+    fn test_validate_entity_missing_id() {
+        let json_value = json!({
+            "entities": [{
+                "name": "User",
+                "fields": [{"name": "name", "field_type": "String"}]
+            }]
+        });
+
+        let schema_result = Schema::new(json_value);
+        assert!(matches!(schema_result, Err(SchemaError::EntityIdError)));
     }
 }
