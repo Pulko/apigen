@@ -85,6 +85,22 @@ rustc --version
    - Source code for the API, including routes and schema
    - Other configuration files such as `.gitignore` and `Dockerfile`.
 
+## Usage with Docker
+
+You can also run the API generator using Docker. You can run the API generator using the following command:
+
+```bash
+docker run --rm -v "$PWD:/usr/src/app" apigen '<api_schema_json>'
+```
+
+Replace `<api_schema_json>` with your actual JSON schema.
+
+Example:
+
+```bash
+docker run --rm -v "$PWD:/usr/src/app" apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"u32"},{"name":"username","field_type":"String"}]}]}'
+```
+
 ## Configuration
 
 The project uses a `TemplateConfig` to load template files depending on the selected database backend. By default, it uses PostgreSQL templates located in the `templates/postgres/` directory.
