@@ -90,7 +90,7 @@ rustc --version
 You can also run the API generator using Docker. You can run the API generator using the following command:
 
 ```bash
-docker run --rm -v "$PWD:/usr/src/app" apigen '<api_schema_json>'
+docker run --rm -v "$PWD:/usr/src/app" vzdbovich455/apigen:0.3.0 '<api_schema_json>'
 ```
 
 Replace `<api_schema_json>` with your actual JSON schema.
@@ -98,7 +98,7 @@ Replace `<api_schema_json>` with your actual JSON schema.
 Example:
 
 ```bash
-docker run --rm -v "$PWD:/usr/src/app" apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"i32"},{"name":"username","field_type":"String"}]}]}'
+docker run --rm -v "$PWD:/usr/src/app" vzdbovich455/apigen:0.3.0 '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"i32"},{"name":"username","field_type":"String"}]}]}'
 ```
 
 ## Configuration
