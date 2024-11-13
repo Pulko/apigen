@@ -1,9 +1,0 @@
-{% for entity in entities %}
-diesel::table! {
-    {{ entity.name|lower|pluralize }} (id) {
-        {% for field in entity.fields %}
-        {{ field.name }} -> {{ field.field_type|diesel_type }},
-        {% endfor %}
-    }
-}
-{% endfor %}

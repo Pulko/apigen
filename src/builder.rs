@@ -93,14 +93,6 @@ async fn render(
     folder: &str,
     api_schema: &ApiSchema,
 ) -> Result<(), BuilderError> {
-    render_single_template(
-        tera,
-        context,
-        "schema.rs",
-        &format!("{}/src/schema.rs", folder),
-    )
-    .await?;
-
     render_single_template(tera, context, "main.rs", &format!("{}/src/main.rs", folder)).await?;
 
     for entity in &api_schema.entities {
@@ -140,11 +132,13 @@ async fn render(
     )
     .await?;
 
+    render_single_template(tera, context, ".env", &format!("{}/.env", folder)).await?;
+
     render_single_template(
         tera,
         context,
-        "Dockerfile",
-        &format!("{}/Dockerfile", folder),
+        "docker-compose.yml",
+        &format!("{}/docker-compose.yml", folder),
     )
     .await?;
 

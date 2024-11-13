@@ -7,13 +7,13 @@ pub struct TemplateConfig {
 }
 
 const POSTGRES_TEMPLATES: [(&str, &str); 7] = [
-    ("schema.rs", "postgres/schema.rs.tera"),
     ("main.rs", "postgres/main.rs.tera"),
     ("entity.rs", "postgres/api/entity.rs.tera"),
     ("mod.rs", "postgres/api/mod.rs.tera"),
     ("Cargo.toml", "postgres/Cargo.toml.template"),
     (".gitignore", "postgres/.gitignore.template"),
-    ("Dockerfile", "postgres/Dockerfile.template"),
+    ("docker-compose.yml", "postgres/docker-compose.yml.template"),
+    (".env", "postgres/.env.template"),
 ];
 
 const SUPPORTED_DBS: [&str; 1] = ["postgres"];

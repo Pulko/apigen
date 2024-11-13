@@ -8,7 +8,7 @@ This project is a Rust-based API generator that allows you to generate a complet
 
 - Generates API folders with schema, entities, and configuration files.
 - Supports different backends and databases through templates (PostgreSQL is supported out of the box).
-- Automatically creates folder structures and essential files (`Cargo.toml`, `.gitignore`, `Dockerfile`, etc.).
+- Automatically creates folder structures and essential files (`Cargo.toml`, `.gitignore`, etc.).
 - Extensible with multiple filters like `capitalize_first_letter`, `pluralize`, and `diesel_type` for template rendering.
 
 ## Prerequisites
@@ -39,7 +39,7 @@ rustc --version
        {
          "name": "User",
          "fields": [
-           { "name": "id", "field_type": "u32" },
+           { "name": "id", "field_type": "i32" },
            {
              "name": "username",
              "field_type": "String"
@@ -49,7 +49,7 @@ rustc --version
        {
          "name": "Post",
          "fields": [
-           { "name": "id", "field_type": "u32" },
+           { "name": "id", "field_type": "i32" },
            {
              "name": "title",
              "field_type": "String"
@@ -60,7 +60,7 @@ rustc --version
            },
            {
              "name": "author_id",
-             "field_type": "u32"
+             "field_type": "i32"
            }
          ]
        }
@@ -77,7 +77,7 @@ rustc --version
    Replace `<api_schema_json>` with your actual JSON schema. For example:
 
    ```bash
-   apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"u32"},{"name":"username","field_type":"String"}]}]}'
+   apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"i32"},{"name":"username","field_type":"String"}]}]}'
    ```
 
 4. The generated API will be saved in the `output` directory. The output folder will contain:
@@ -98,7 +98,7 @@ Replace `<api_schema_json>` with your actual JSON schema.
 Example:
 
 ```bash
-docker run --rm -v "$PWD:/usr/src/app" apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"u32"},{"name":"username","field_type":"String"}]}]}'
+docker run --rm -v "$PWD:/usr/src/app" apigen '{"entities":[{"name":"User","fields":[{"name":"id","field_type":"i32"},{"name":"username","field_type":"String"}]}]}'
 ```
 
 ## Configuration

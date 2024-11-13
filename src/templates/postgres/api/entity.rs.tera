@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
 use crate::schema::{{ entity.name|pluralize|lower }};
-use crate::{internal_error, DatabaseConnection, Pool};
+use crate::{internal_error, Pool};
 
 #[derive(serde::Serialize, Selectable, Queryable, AsChangeset, Identifiable, Debug)]
 pub struct {{ entity.name }} {
@@ -43,7 +43,7 @@ pub async fn create_{{ entity.name|lower }}(
     State(pool): State<Pool>,
     Json(new_{{ entity.name|lower }}): Json<New{{ entity.name }}>,
 ) -> Result<Json<{{ entity.name }}>, (StatusCode, String)> {
-    let mut conn = pool.get().await.map_err(internal_error)?;
+    let mut conn = pool.get().await.map_err(internal_error).unwrap();
 
     let res = diesel::insert_into({{ entity.name|pluralize|lower }}::table)
         .values(new_{{ entity.name|lower }})
@@ -54,9 +54,11 @@ pub async fn create_{{ entity.name|lower }}(
     Ok(Json(res))
 }
 
-pub async fn list_{{ entity.name|lower }}s(
-    DatabaseConnection(mut conn): DatabaseConnection,
+pub async fn list_{{ entity.name|lower|pluralize }}(
+    State(pool): State<Pool>,
 ) -> Result<Json<Vec<{{ entity.name }}>>, (StatusCode, String)> {
+    let mut conn = pool.get().await.map_err(internal_error).unwrap();
+
     let res = {{ entity.name|pluralize|lower }}::table
         .select({{ entity.name }}::as_select())
         .load(&mut conn)
@@ -69,7 +71,8 @@ pub async fn delete_{{ entity.name|lower }}(
     State(pool): State<Pool>,
     Json(delete_{{ entity.name|lower }}): Json<Delete{{ entity.name }}>,
 ) {
-    let mut conn = pool.get().await.unwrap();
+    let mut conn = pool.get().await.map_err(internal_error).unwrap();
+
     diesel::delete({{ entity.name|pluralize|lower }}::table.filter({{ entity.name|pluralize|lower }}::id.eq(delete_{{ entity.name|lower }}.id)))
         .execute(&mut conn)
         .await
@@ -80,7 +83,7 @@ pub async fn update_{{ entity.name|lower }}(
     State(pool): State<Pool>,
     Json(update_{{ entity.name|lower }}): Json<Update{{ entity.name }}>,
 ) -> Result<Json<{{ entity.name }}>, (StatusCode, String)> {
-    let mut conn = pool.get().await.unwrap();
+    let mut conn = pool.get().await.map_err(internal_error).unwrap();
 
     let res = diesel::update({{ entity.name|pluralize|lower }}::table.filter({{ entity.name|pluralize|lower }}::id.eq(update_{{ entity.name|lower }}.id)))
         .set((

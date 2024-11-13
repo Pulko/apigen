@@ -1,7 +1,5 @@
 use axum::{
-    async_trait,
-    extract::{FromRef, FromRequestParts},
-    http::{request::Parts, StatusCode},
+    http::StatusCode,
     routing::{get, post},
     Router,
 };
@@ -49,27 +47,6 @@ async fn main() {
     tracing::debug!("Started on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-struct DatabaseConnection(
-    bb8::PooledConnection<'static, AsyncDieselConnectionManager<AsyncPgConnection>>,
-);
-
-#[async_trait]
-impl<S> FromRequestParts<S> for DatabaseConnection
-where
-    S: Send + Sync,
-    Pool: FromRef<S>,
-{
-    type Rejection = (StatusCode, String);
-
-    async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let pool = Pool::from_ref(state);
-
-        let conn = pool.get_owned().await.map_err(internal_error)?;
-
-        Ok(Self(conn))
-    }
 }
 
 pub fn internal_error<E>(err: E) -> (StatusCode, String)
